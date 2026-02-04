@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sansoukai Preview</title>
+
+<style>
+  :root{
+    --bg:#0b0f1a;
+    --panel: rgba(255,255,255,.08);
+    --panel2: rgba(255,255,255,.06);
+    --stroke: rgba(255,255,255,.12);
+    --text: rgba(255,255,255,.92);
+    --muted: rgba(255,255,255,.62);
+
+    --imgH: 360px;
+    --gap: 44px;
+    --duration: 70s;
+    --zoom: 1.06;
+
+    /* 単体スライド用 */
+    --slideHold: 2.6s;    /* 1枚の表示時間（目安） */
+    --slideFade: 0.65s;   /* フェード時間 */
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 700px at 20% 10%, #18244a 0%, var(--bg) 55%),
+      radial-gradient(900px 500px at 85% 20%, #2a1653 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow:hidden;
+  }
+  .app{
+    position:fixed; inset:0;
+    display:grid;
+    grid-template-columns: 380px 1fr;
+    gap:16px;
+    padding:16px;
+  }
+  .panel{
+    background: linear-gradient(180deg, var(--panel), var(--panel2));
+    border:1px solid var(--stroke);
+    border-radius:20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.38);
+    backdrop-filter: blur(14px);
+    overflow:hidden;
+  }
+
+  /* Left */
+  .left{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    padding:12px;
+    min-width: 340px;
+  }
+  .group{
+    border:1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.14);
+    border-radius:18px;
+    padding:12px;
+    display:grid;
+    gap:10px;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    gap:10px;
+    align-items:center;
+  }
+  .chip{
+    padding:6px 10px;
+    border:1px solid var(--stroke);
+    border-radius:999px;
+    color:var(--muted);
+    font-size:12px;
+    background:rgba(0,0,0,.18);
+    white-space:nowrap;
+  }
+  input[type="range"]{ width:100%; }
+  input[type="file"]{ width:100%; }
+
+  .btnRow{ display:flex; gap:10px; }
+  .btn{
+    appearance:none;
+    border:1px solid var(--stroke);
+    background:rgba(0,0,0,.18);
+    color:var(--text);
+    border-radius:14px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-weight:900;
+    flex:1;
+    transition: transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:active{ transform: translateY(1px) scale(.99); }
+  .btn.danger{ border-color: rgba(255,120,120,.35); }
+
+  /* Presets */
+  .presets{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:10px;
+  }
+  .pbtn{
+    border:1px solid rgba(255,255,255,.12);
+    background: rgba(0,0,0,.16);
+    color:var(--text);
+    border-radius:16px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-weight:900;
+    text-align:left;
+    display:grid;
+    gap:6px;
+    min-height:78px;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
+  }
+  .pbtn:active{ transform: translateY(1px) scale(.995); }
+  .pbtn .top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .pbtn .id{ font-weight:1000; font-size:14px; letter-spacing:.3px; }
+  .pbtn .mini{ color:var(--muted); font-size:12px; font-weight:850; }
+  .pbtn .desc{ color:rgba(255,255,255,.72); font-size:12px; font-weight:750; line-height:1.25; }
+  .pbtn.active{
+    border-color: rgba(123,255,198,.55);
+    box-shadow: 0 0 0 2px rgba(123,255,198,.14) inset;
+    background: rgba(255,255,255,.06);
+  }
+
+  /* Right */
+  .right{ position:relative; }
+  .stage{
+    position:absolute; inset:0;
+    overflow:hidden;
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.08));
+    border-radius:20px;
+  }
+  .fade{
+    position:absolute; inset:0; pointer-events:none;
+    background: linear-gradient(90deg,
+      rgba(11,15,26,1) 0%,
+      rgba(11,15,26,0) 12%,
+      rgba(11,15,26,0) 88%,
+      rgba(11,15,26,1) 100%);
+    opacity:.85;
+  }
+
+  /* Conveyor Track */
+  .track{
+    position:absolute;
+    top:50%;
+    left:0;
+    transform: translateY(-50%);
+    display:flex;
+    align-items:center;
+    gap: var(--gap);
+    padding-left: 8vw;
+    will-change: transform;
+  }
+  .card{
+    flex:0 0 auto;
+    border-radius:18px;
+    overflow:hidden;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow: 0 18px 70px rgba(0,0,0,.35);
+  }
+  .card img{
+    height: var(--imgH);
+    width:auto;
+    display:block;
+  }
+
+  /* Two lanes */
+  .lane{ position:absolute; left:0; display:flex; gap: var(--gap); padding-left: 6vw; will-change:transform; }
+  .lane.top{ top:42%; transform: translateY(-50%); }
+  .lane.bot{ top:58%; transform: translateY(-50%); opacity:.96; }
+
+  /* Grid */
+  .gridWrap{
+    position:absolute; inset:0;
+    display:none;
+    place-items:center;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(5, auto);
+    gap:16px;
+    padding: 24px;
+    align-items:center;
+    justify-content:center;
+  }
+  .grid .card img{ height: 210px; }
+
+  /* Single Slide Show */
+  .singleWrap{
+    position:absolute; inset:0;
+    display:none;
+    place-items:center;
+  }
+  .singleFrame{
+    border-radius:22px;
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow: 0 24px 90px rgba(0,0,0,.45);
+    background: rgba(0,0,0,.12);
+  }
+  .singleImg{
+    display:block;
+    height: min(70vh, 520px);
+    width:auto;
+  }
+
+  /* Pause */
+  .paused .track{ animation-play-state: paused !important; }
+  .paused .card{ animation-play-state: paused !important; }
+  .paused .lane{ animation-play-state: paused !important; }
+  .paused .grid .card{ animation-play-state: paused !important; }
+
+  @media (max-width: 900px){
+    .app{ grid-template-columns:1fr; }
+    .grid{ grid-template-columns: repeat(3, auto); }
+  }
+</style>
+
+<style id="dyn"></style>
+</head>
+
+<body>
+<div class="app">
+  <section class="panel left">
+    <div class="group">
+      <!-- 複数回選んで「追加」できる（順番維持） -->
+      <div class="row">
+        <input id="files" type="file" accept="image/*" multiple />
+        <span class="chip" id="count">0</span>
+      </div>
+
+      <div class="btnRow">
+        <button class="btn" id="add">追加</button>
+        <button class="btn danger" id="clear">✕</button>
+      </div>
+
+      <div class="row">
+        <input id="dur" type="range" min="25" max="220" value="70" />
+        <span class="chip" id="durL">70s</span>
+      </div>
+      <div class="row">
+        <input id="h" type="range" min="180" max="520" value="360" />
+        <span class="chip" id="hL">360</span>
+      </div>
+      <div class="row">
+        <input id="gap" type="range" min="12" max="90" value="44" />
+        <span class="chip" id="gapL">44</span>
+      </div>
+
+      <div class="btnRow">
+        <button class="btn" id="toggle" title="Space">⏸</button>
+        <button class="btn" id="shuffle" title="S">順番シャッフル</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="presets" id="presetBtns"></div>
+    </div>
+  </section>
+
+  <section class="panel right">
+    <div class="stage play" id="stage">
+      <div class="track" id="track"></div>
+
+      <div class="gridWrap" id="gridWrap">
+        <div class="grid" id="grid"></div>
+      </div>
+
+      <div class="singleWrap" id="singleWrap">
+        <div class="singleFrame">
+          <img id="singleImg" class="singleImg" alt="" />
+        </div>
+      </div>
+
+      <div class="fade"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ========= アニメ候補 =========
+  // 「順番に流れる」＝入れた順で並び、その順のまま流れていく（コンベア）を基本に。
+  // 追加 5個 (N〜R) を含めて選択可。
+
+  const PRESETS = [
+    // --- 既存系（代表だけ残して軽く） ---
+    { id:"A", label:"直線", desc:"一定速度で静かに横へ流れる", mode:"track", css:`
+      .play .track{ animation: moveX var(--duration) linear infinite; }
+      @keyframes moveX{ from{ transform: translate(-55vw,-50%);} to{ transform: translate(55vw,-50%);} }
+    `},
+    { id:"D", label:"弱ズーム", desc:"写真がごくゆっくりズームしながら流れる", mode:"track", css:`
+      .play .track{ animation: moveX var(--duration) linear infinite; }
+      @keyframes moveX{ from{ transform: translate(-55vw,-50%);} to{ transform: translate(55vw,-50%);} }
+      .play .card img{ animation: kb 12s ease-in-out infinite; transform-origin: 50% 50%; }
+      .play .card:nth-child(2n) img{ animation-duration: 13.5s; transform-origin: 40% 55%; }
+      .play .card:nth-child(3n) img{ animation-duration: 15s; transform-origin: 60% 45%; }
+      @keyframes kb{ 0%,100%{ transform: scale(1);} 50%{ transform: scale(var(--zoom)); } }
+    `},
+    { id:"F", label:"並べる", desc:"並べた写真が順番に目立つ", mode:"grid", css:`
+      .gridWrap{ display:grid !important; }
+      .singleWrap{ display:none !important; }
+      .track{ display:none !important; }
+      .play .grid .card{ animation: glow 7.5s ease-in-out infinite; opacity:.75; }
+      .play .grid .card:nth-child(1){ animation-delay:0s }
+      .play .grid .card:nth-child(2){ animation-delay:1.0s }
+      .play .grid .card:nth-child(3){ animation-delay:2.0s }
+      .play .grid .card:nth-child(4){ animation-delay:3.0s }
+      .play .grid .card:nth-child(5){ animation-delay:4.0s }
+      .play .grid .card:nth-child(6){ animation-delay:5.0s }
+      .play .grid .card:nth-child(7){ animation-delay:6.0s }
+      .play .grid .card:nth-child(8){ animation-delay:7.0s }
+      .play .grid .card:nth-child(9){ animation-delay:8.0s }
+      .play .grid .card:nth-child(10){ animation-delay:9.0s }
+      @keyframes glow{
+        0%,100%{ transform: scale(1); opacity:.70; }
+        35%{ transform: scale(1.05); opacity:1; box-shadow: 0 26px 90px rgba(0,0,0,.45); }
+        60%{ transform: scale(1); opacity:.82; }
+      }
+    `},
+
+    // ========= 追加 5個（N〜R） =========
+
+    // N: “1枚ずつ主役” 強め（順番にハイライト＋中央でちょい減速）
+    { id:"N", label:"主役", desc:"順番に主役っぽく見せながら流れる", mode:"track", css:`
+      .play .track{ animation: pauseMove var(--duration) linear infinite; }
+      @keyframes pauseMove{
+        0%   { transform: translate(-55vw,-50%); }
+        42%  { transform: translate(-6vw,-50%); }
+        58%  { transform: translate( 6vw,-50%); }
+        100% { transform: translate(55vw,-50%); }
+      }
+      .play .card{ animation: shine 9.0s ease-in-out infinite; opacity:.86; }
+      .play .card:nth-child(1){ animation-delay:0s }
+      .play .card:nth-child(2){ animation-delay:.9s }
+      .play .card:nth-child(3){ animation-delay:1.8s }
+      .play .card:nth-child(4){ animation-delay:2.7s }
+      .play .card:nth-child(5){ animation-delay:3.6s }
+      .play .card:nth-child(6){ animation-delay:4.5s }
+      .play .card:nth-child(7){ animation-delay:5.4s }
+      .play .card:nth-child(8){ animation-delay:6.3s }
+      .play .card:nth-child(9){ animation-delay:7.2s }
+      .play .card:nth-child(10){ animation-delay:8.1s }
+      @keyframes shine{
+        0%,100%{ transform: translateY(0) scale(1); filter: brightness(.98); opacity:.80; }
+        35%{ transform: translateY(-7px) scale(1.03); filter: brightness(1.10); opacity:1; }
+        70%{ transform: translateY(0) scale(1); filter: brightness(1.01); opacity:.9; }
+      }
+    `},
+
+    // O: “単体スライド” クロスフェード（順番に1枚ずつ）
+    { id:"O", label:"単体", desc:"1枚ずつ切り替わって表示される", mode:"single", css:`
+      .singleWrap{ display:grid !important; }
+      .gridWrap{ display:none !important; }
+      .track{ display:none !important; }
+      /* JSで切替するのでCSSは見た目だけ */
+      .singleFrame{ transform: translateZ(0); }
+    `},
+
+    // P: “単体スライド＋軽いズーム” 記憶っぽい
+    { id:"P", label:"単体ズ", desc:"1枚ずつ＋ごく弱いズームで切替", mode:"single", css:`
+      .singleWrap{ display:grid !important; }
+      .gridWrap{ display:none !important; }
+      .track{ display:none !important; }
+      .play #singleImg{ animation: szoom 6.8s ease-in-out infinite; transform-origin: 52% 48%; }
+      @keyframes szoom{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.035); } }
+    `},
+
+    // Q: “縦スクロール” 上→下（雰囲気変えたい時用）
+    { id:"Q", label:"縦", desc:"上から下へゆっくり流れる", mode:"track", css:`
+      /* 縦に見せるため、レーンを縦並びっぽくする */
+      .track{ flex-direction: column; top:8vh; left:50%; transform: translate(-50%,0); padding-left:0; }
+      .play .track{ animation: moveY var(--duration) linear infinite; }
+      @keyframes moveY{ from{ transform: translate(-50%,-40vh);} to{ transform: translate(-50%,40vh);} }
+      .fade{ background: linear-gradient(180deg,
+        rgba(11,15,26,1) 0%,
+        rgba(11,15,26,0) 12%,
+        rgba(11,15,26,0) 88%,
+        rgba(11,15,26,1) 100%); }
+    `},
+
+    // R: “斜めドリフト” ほんの少しだけ斜めに流す
+    { id:"R", label:"斜め", desc:"斜めにゆっくり流れていく", mode:"track", css:`
+      .play .track{ animation: diag var(--duration) linear infinite; }
+      @keyframes diag{
+        from{ transform: translate(-55vw,-50%) translateY(10px); }
+        to  { transform: translate( 55vw,-50%) translateY(-10px); }
+      }
+      .play .card{ animation: drift 7.4s ease-in-out infinite; }
+      .play .card:nth-child(2n){ animation-duration: 8.2s; }
+      .play .card:nth-child(3n){ animation-duration: 9.0s; }
+      @keyframes drift{
+        0%,100%{ transform: rotate(-.12deg) translateY(0px); opacity:.94; }
+        50%{ transform: rotate(.12deg) translateY(-4px); opacity:1; }
+      }
+    `}
+  ];
+
+  // ========= DOM =========
+  const files = document.getElementById('files');
+  const count = document.getElementById('count');
+  const addBtn = document.getElementById('add');
+  const clearBtn = document.getElementById('clear');
+  const toggleBtn = document.getElementById('toggle');
+  const shuffleBtn = document.getElementById('shuffle');
+
+  const dur = document.getElementById('dur');
+  const durL = document.getElementById('durL');
+  const h = document.getElementById('h');
+  const hL = document.getElementById('hL');
+  const gap = document.getElementById('gap');
+  const gapL = document.getElementById('gapL');
+
+  const stage = document.getElementById('stage');
+  const track = document.getElementById('track');
+  const gridWrap = document.getElementById('gridWrap');
+  const grid = document.getElementById('grid');
+  const singleWrap = document.getElementById('singleWrap');
+  const singleImg = document.getElementById('singleImg');
+
+  const dyn = document.getElementById('dyn');
+  const presetBtns = document.getElementById('presetBtns');
+
+  // ========= State =========
+  let urls = [];          // 追加して増える
+  let playing = true;
+  let current = PRESETS[0];
+
+  // 単体スライド用
+  let slideTimer = null;
+  let slideIndex = 0;
+
+  // ========= Helpers =========
+  const setVars = () => {
+    document.documentElement.style.setProperty('--duration', dur.value + 's');
+    document.documentElement.style.setProperty('--imgH', h.value + 'px');
+    document.documentElement.style.setProperty('--gap', gap.value + 'px');
+    durL.textContent = dur.value + 's';
+    hL.textContent = h.value;
+    gapL.textContent = gap.value;
+  };
+
+  const setPlay = (on) => {
+    playing = on;
+    stage.classList.toggle('play', on);
+    stage.classList.toggle('paused', !on);
+    toggleBtn.textContent = on ? '⏸' : '▶';
+    if (current.mode === 'single') {
+      if (on) startSingle(); else stopSingle();
+    }
+  };
+
+  const makeCard = (src) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const img = document.createElement('img');
+    img.src = src;
+    card.appendChild(img);
+    return card;
+  };
+
+  const clearLanes = () => stage.querySelectorAll('.lane').forEach(l => l.remove());
+
+  const renderTrack = () => {
+    track.innerHTML = '';
+    urls.forEach(u => track.appendChild(makeCard(u)));
+  };
+
+  const renderGrid = () => {
+    grid.innerHTML = '';
+    urls.forEach(u => grid.appendChild(makeCard(u)));
+  };
+
+  const updateCount = () => {
+    count.textContent = String(urls.length);
+  };
+
+  const revokeAll = () => {
+    urls.forEach(u => { try{ URL.revokeObjectURL(u); }catch{} });
+  };
+
+  // ========= Single slideshow =========
+  const stopSingle = () => {
+    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+  };
+
+  const startSingle = () => {
+    stopSingle();
+    if (!urls.length) return;
+    slideIndex = Math.max(0, Math.min(slideIndex, urls.length - 1));
+
+    const show = (idx) => {
+      const src = urls[idx];
+      if (!src) return;
+
+      // クロスフェード（CSSだけで済ませる）
+      singleImg.style.opacity = 0;
+      setTimeout(() => {
+        singleImg.src = src;
+        singleImg.style.opacity = 1;
+      }, 80);
+    };
+
+    // 初回表示
+    singleImg.style.transition = `opacity var(--slideFade) ease`;
+    show(slideIndex);
+
+    // 間隔：duration から自動算出（ざっくり “全部見切る” 方向）
+    // 例: urls=10枚, duration=70s => 1枚 ~7s
+    const per = Math.max(2200, Math.floor((parseFloat(dur.value) * 1000) / Math.max(1, urls.length)));
+    const interval = per;
+
+    slideTimer = setInterval(() => {
+      if (!playing) return;
+      slideIndex = (slideIndex + 1) % urls.length;
+      show(slideIndex);
+    }, interval);
+  };
+
+  // ========= Preset apply =========
+  const setPreset = (p) => {
+    current = p;
+    dyn.textContent = p.css;
+
+    // active button
+    document.querySelectorAll('.pbtn').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.pbtn[data-id="${p.id}"]`);
+    if (btn) btn.classList.add('active');
+
+    // reset structure
+    clearLanes();
+    track.style.display = 'flex';
+    gridWrap.style.display = 'none';
+    singleWrap.style.display = 'none';
+
+    // default track layout back to horizontal (Qの縦で壊れるので念のため復帰)
+    track.style.flexDirection = 'row';
+    track.style.top = '50%';
+    track.style.left = '0';
+    track.style.transform = 'translateY(-50%)';
+    track.style.paddingLeft = '8vw';
+
+    if (p.mode === 'grid') {
+      gridWrap.style.display = 'grid';
+      track.style.display = 'none';
+      singleWrap.style.display = 'none';
+      renderGrid();
+      stopSingle();
+      return;
+    }
+
+    if (p.mode === 'single') {
+      singleWrap.style.display = 'grid';
+      track.style.display = 'none';
+      gridWrap.style.display = 'none';
+      if (playing) startSingle(); else stopSingle();
+      return;
+    }
+
+    // track系
+    stopSingle();
+    renderTrack();
+  };
+
+  // ========= Add images (複数回追加OK) =========
+  const appendFiles = (fileList) => {
+    const list = Array.from(fileList || []);
+    if (!list.length) return;
+
+    // 追加（順番保持：選んだ順に末尾へ）
+    const newUrls = list.slice(0, 200).map(f => URL.createObjectURL(f));
+    urls.push(...newUrls);
+
+    updateCount();
+    setPreset(current);
+    setPlay(true);
+  };
+
+  // ========= Shuffle (optional) =========
+  const shuffleOrder = () => {
+    // Fisher-Yates
+    for (let i = urls.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [urls[i], urls[j]] = [urls[j], urls[i]];
+    }
+    setPreset(current);
+    setPlay(true);
+  };
+
+  // ========= Build preset buttons =========
+  PRESETS.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.type = "button";
+    b.className = 'pbtn' + (i === 0 ? ' active' : '');
+    b.dataset.id = p.id;
+    b.innerHTML = `
+      <div class="top">
+        <div class="id">${p.id}</div>
+        <div class="mini">${p.label}</div>
+      </div>
+      <div class="desc">${p.desc}</div>
+    `;
+    b.addEventListener('click', () => setPreset(p));
+    presetBtns.appendChild(b);
+  });
+
+  // ========= Events =========
+  dur.addEventListener('input', () => { setVars(); if (current.mode === 'single' && playing) startSingle(); });
+  h.addEventListener('input', setVars);
+  gap.addEventListener('input', setVars);
+
+  addBtn.addEventListener('click', () => appendFiles(files.files));
+
+  files.addEventListener('change', () => {
+    // 選んだだけでは追加しない（先生PCで事故るの防止）
+    // 「追加」ボタンで確定する運用にしてる
+  });
+
+  clearBtn.addEventListener('click', () => {
+    stopSingle();
+    revokeAll();
+    urls = [];
+    track.innerHTML = '';
+    grid.innerHTML = '';
+    singleImg.removeAttribute('src');
+    clearLanes();
+    files.value = '';
+    slideIndex = 0;
+    updateCount();
+  });
+
+  toggleBtn.addEventListener('click', () => setPlay(!playing));
+  shuffleBtn.addEventListener('click', shuffleOrder);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); setPlay(!playing); }
+    const n = parseInt(e.key, 10);
+    if (!isNaN(n) && n >= 1 && n <= PRESETS.length) setPreset(PRESETS[n-1]);
+    if (e.key === 's' || e.key === 'S') shuffleOrder();
+    if (e.key === 'a' || e.key === 'A') appendFiles(files.files);
+  });
+
+  // ========= Init =========
+  setVars();
+  updateCount();
+  setPreset(current);
+  setPlay(true);
+</script>
+</body>
+</html>
